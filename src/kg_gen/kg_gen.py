@@ -1,15 +1,17 @@
+import os
+import dspy
+import json
+
+from collections import defaultdict
 from typing import Union, List, Dict, Optional
-from openai import OpenAI
+from concurrent.futures import ThreadPoolExecutor
 
 from .steps._1_get_entities import get_entities
 from .steps._2_get_relations import get_relations
 from .steps._3_cluster_graph import cluster_graph
 from .utils.chunk_text import chunk_text
 from .models import Graph
-import dspy
-import json
-import os
-from concurrent.futures import ThreadPoolExecutor
+
 
 class KGGen:
   def __init__(
@@ -17,7 +19,8 @@ class KGGen:
     model: str = "openai/gpt-4o",
     temperature: float = 0.0,
     api_key: str = None,
-    api_base: str = None
+    api_base: str = None,
+    cache: bool = True,
   ):
     """Initialize KGGen with optional model configuration
 
@@ -26,20 +29,23 @@ class KGGen:
         temperature: Temperature for model sampling
         api_key: API key for model access
         api_base: Specify the base URL endpoint for making API calls to a language model service
+        cache: Whether the model output should be cached
     """
     self.dspy = dspy
     self.model = model
     self.temperature = temperature
     self.api_key = api_key
     self.api_base = api_base
-    self.init_model(model, temperature, api_key, api_base)
+    self.cache = cache
+    self.init_model(model, temperature, api_key, api_base, cache)
 
   def init_model(
     self,
     model: str = None,
     temperature: float = None,
     api_key: str = None,
-    api_base: str = None
+    api_base: str = None,
+    cache: bool = True,
   ):
     """Initialize or reinitialize the model with new parameters
 
@@ -61,9 +67,20 @@ class KGGen:
 
     # Initialize dspy LM with current settings
     if self.api_key:
-      self.lm = dspy.LM(model=self.model, api_key=self.api_key, temperature=self.temperature, api_base=self.api_base)
+      self.lm = dspy.LM(
+        model=self.model,
+        api_key=self.api_key,
+        temperature=self.temperature,
+        api_base=self.api_base,
+        cache=self.cache,
+      )
     else:
-      self.lm = dspy.LM(model=self.model, temperature=self.temperature, api_base=self.api_base)
+      self.lm = dspy.LM(
+        model=self.model,
+        temperature=self.temperature,
+        api_base=self.api_base,
+        cache=self.cache,
+      )
 
     self.dspy.configure(lm=self.lm)
 
@@ -74,6 +91,7 @@ class KGGen:
     api_key: str = None,
     api_base: str = None,
     context: str = "",
+    examples: Optional[List[dspy.Example]] = None,
     # example_relations: Optional[Union[
     #   List[Tuple[str, str, str]],
     #   List[Tuple[Tuple[str, str], str, Tuple[str, str]]]
@@ -86,7 +104,7 @@ class KGGen:
     require_node_type: bool = True,
     require_edge_type: bool = True,
     # ontology: Optional[List[Tuple[str, str, str]]] = None,
-    output_folder: Optional[str] = None
+    output_folder: Optional[str] = None,
   ) -> Graph:
     """Generate a knowledge graph from input text or messages.
 
@@ -114,8 +132,14 @@ class KGGen:
       # Extract text from messages
       text_content = []
       for message in input_data:
-        if not isinstance(message, dict) or 'role' not in message or 'content' not in message:
-          raise ValueError("Messages must be dicts with 'role' and 'content' keys")
+        if (
+          not isinstance(message, dict)
+          or 'role' not in message
+          or 'content' not in message
+        ):
+          raise ValueError(
+            "Messages must be dicts with 'role' and 'content' keys"
+          )
         if message['role'] in ['user', 'assistant']:
           text_content.append(f"{message['role']}: {message['content']}")
 
@@ -144,7 +168,8 @@ class KGGen:
         processed_input, 
         is_conversation=is_conversation,
         node_types=node_type,
-        require_node_type=require_node_type
+        require_node_type=require_node_type,
+        examples=examples,
       )
       
       # Unpack results - entities_result is a tuple of (entities_list, entity_types_dict)
@@ -153,7 +178,7 @@ class KGGen:
       else:
         entities = entities_result
         entity_types_map = None
-        
+
       # Get relations with edge types if specified
       relations_result = get_relations(
         self.dspy, 
@@ -161,7 +186,8 @@ class KGGen:
         entities, 
         is_conversation=is_conversation,
         edge_types=edge_type,
-        require_edge_type=require_edge_type
+        require_edge_type=require_edge_type,
+        examples=examples,
       )
       
       # Unpack relations results
@@ -178,7 +204,7 @@ class KGGen:
       relations = set()
       
       # Initialize type dictionaries
-      all_entity_types = {}
+      all_entity_types = defaultdict(set)
       all_edge_types = {}
 
       def process_chunk(chunk):
@@ -188,16 +214,17 @@ class KGGen:
           chunk, 
           is_conversation=is_conversation,
           node_types=node_type,
-          require_node_type=require_node_type
+          require_node_type=require_node_type,
+          examples=examples,
         )
-        
+
         # Unpack entity results
         if isinstance(entities_result, tuple) and len(entities_result) == 2:
           chunk_entities, chunk_entity_types = entities_result
         else:
           chunk_entities = entities_result
           chunk_entity_types = None
-          
+
         # Get relations with types
         relations_result = get_relations(
           self.dspy, 
@@ -205,7 +232,8 @@ class KGGen:
           chunk_entities, 
           is_conversation=is_conversation,
           edge_types=edge_type,
-          require_edge_type=require_edge_type
+          require_edge_type=require_edge_type,
+          examples=examples,
         )
         
         # Unpack relation results
@@ -228,7 +256,8 @@ class KGGen:
         
         # Update type dictionaries if they exist
         if chunk_entity_types:
-          all_entity_types.update(chunk_entity_types)
+          for entity, typ in chunk_entity_types.items():
+            all_entity_types[entity].add(typ)
         if chunk_edge_types:
           all_edge_types.update(chunk_edge_types)
           
@@ -259,24 +288,24 @@ class KGGen:
       output_path = os.path.join(output_folder, 'graph.json')
 
       graph_dict = {
-        'entities': list(entities),
-        'relations': list(relations),
-        'edges': list(graph.edges)
+        "entities": list(entities),
+        "relations": list(relations),
+        "edges": list(graph.edges)
       }
       
       # Include entity and edge type information if available
-      if hasattr(graph, 'entity_types') and graph.entity_types:
-        graph_dict['entity_types'] = graph.entity_types
-      if hasattr(graph, 'edge_types') and graph.edge_types:
-        graph_dict['edge_types'] = graph.edge_types
+      if hasattr(graph, "entity_types") and graph.entity_types:
+        graph_dict["entity_types"] = graph.entity_types
+      if hasattr(graph, "edge_types") and graph.edge_types:
+        graph_dict["edge_types"] = graph.edge_types
       
       # Include clustering information if available
-      if hasattr(graph, 'entity_clusters') and graph.entity_clusters:
-        graph_dict['entity_clusters'] = {rep: list(cluster) for rep, cluster in graph.entity_clusters.items()}
-      if hasattr(graph, 'edge_clusters') and graph.edge_clusters:
-        graph_dict['edge_clusters'] = {rep: list(cluster) for rep, cluster in graph.edge_clusters.items()}
+      if hasattr(graph, "entity_clusters") and graph.entity_clusters:
+        graph_dict["entity_clusters"] = {rep: list(cluster) for rep, cluster in graph.entity_clusters.items()}
+      if hasattr(graph, "edge_clusters") and graph.edge_clusters:
+        graph_dict["edge_clusters"] = {rep: list(cluster) for rep, cluster in graph.edge_clusters.items()}
       
-      with open(output_path, 'w') as f:
+      with open(output_path, "w") as f:
         json.dump(graph_dict, f, indent=2)
 
     return graph
@@ -288,7 +317,7 @@ class KGGen:
     model: str = None,
     temperature: float = None,
     api_key: str = None,
-    api_base: str = None
+    api_base: str = None,
   ) -> Graph:
     # Reinitialize dspy with new parameters if any are provided
     if any([model, temperature, api_key, api_base]):
@@ -317,5 +346,5 @@ class KGGen:
     return Graph(
       entities=all_entities,
       relations=all_relations,
-      edges=all_edges
+      edges=all_edges,
     )
