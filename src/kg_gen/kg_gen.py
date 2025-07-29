@@ -13,6 +13,7 @@ from .utils.chunk_text import chunk_text
 from .models import Graph
 
 
+
 class KGGen:
   def __init__(
     self,

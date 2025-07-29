@@ -5,6 +5,34 @@ from pydantic import BaseModel, create_model
 from pydantic_core import ValidationError
 from typing import List, Literal, Optional, Dict, Tuple
 
+def extraction_sig(Relation: BaseModel, is_conversation: bool, context: str = "") -> dspy.Signature:
+  if not is_conversation:
+    
+    class ExtractTextRelations(dspy.Signature):
+      __doc__ = f"""Extract subject-predicate-object triples from the source text. 
+      Subject and object must be from entities list. Entities provided were previously extracted from the same source text.
+      This is for an extraction task, please be thorough, accurate, and faithful to the reference text. {context}"""
+      
+      source_text: str = dspy.InputField()
+      entities: list[str] = dspy.InputField()
+      relations: list[Relation] = dspy.OutputField(desc="List of subject-predicate-object tuples. Be thorough.")
+
+    return ExtractTextRelations
+  else:
+    class ExtractConversationRelations(dspy.Signature):
+      __doc__ = f"""Extract subject-predicate-object triples from the conversation, including:
+      1. Relations between concepts discussed
+      2. Relations between speakers and concepts (e.g. user asks about X)
+      3. Relations between speakers (e.g. assistant responds to user)
+      Subject and object must be from entities list. Entities provided were previously extracted from the same source text.
+      This is for an extraction task, please be thorough, accurate, and faithful to the reference text. {context}"""
+      
+      source_text: str = dspy.InputField()
+      entities: list[str] = dspy.InputField()
+      relations: list[Relation] = dspy.OutputField(desc="List of subject-predicate-object tuples where subject and object are exact matches to items in entities list. Be thorough")
+      
+    return ExtractConversationRelations
+        
 
 class Relation(BaseModel):
   "Knowledge graph subject-predicate-object tuple"

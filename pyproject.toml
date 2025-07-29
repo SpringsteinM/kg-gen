@@ -22,9 +22,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pyvis==0.3.2"
-]
+dev = ["pyvis==0.3.2"]
 
 [project.urls]
 Homepage = "https://github.com/stair-lab/kg-gen"

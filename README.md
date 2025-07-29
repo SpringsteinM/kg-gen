@@ -63,7 +63,7 @@ graph_1 = kg.generate(
 
 ### More Examples - chunking, clustering, passing in a messages array 
 
-```
+```python
 # EXAMPLE 2: Large text with chunking and clustering
 with open('large_text.txt', 'r') as f:
   large_text = f.read()

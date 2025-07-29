@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 LOOP_N = 8 
 from typing import Literal
-
 BATCH_SIZE = 10
 
 ItemType = Literal["entities", "edges"]
@@ -260,42 +259,6 @@ if __name__ == "__main__":
   if not api_key:
     print("Please set OPENAI_API_KEY environment variable")
     exit(1)
-    
-  # Example with pets and animals
-  # kg_gen = KGGen(
-  #   model=model,
-  #   temperature=0.0,
-  #   api_key=api_key
-  # )
-  # graph = Graph(
-  #   entities={
-  #     "cat", "cats", "dog", "dogs", "mouse", "mice", "fish", "fishes",
-  #     "bird", "birds", "hamster", "hamsters", "person", "people",
-  #     "owner", "owners", "vet", "veterinarian", "food", "treats"
-  #   },
-  #   edges={
-  #     "like", "likes", "love", "loves", "eat", "eats", 
-  #     "chase", "chases", "feed", "feeds", "care for", "cares for",
-  #     "visit", "visits", "play with", "plays with"
-  #   },
-  #   relations={
-  #     ("cat", "likes", "fish"),
-  #     ("cats", "love", "mice"),
-  #     ("dog", "chases", "cat"),
-  #     ("dogs", "chase", "birds"),
-  #     ("mouse", "eats", "food"),
-  #     ("mice", "eat", "treats"),
-  #     ("person", "feeds", "cat"),
-  #     ("people", "feed", "dogs"),
-  #     ("owner", "cares for", "hamster"),
-  #     ("owners", "care for", "hamsters"),
-  #     ("vet", "visits", "dog"),
-  #     ("veterinarian", "visit", "cats"),
-  #     ("bird", "plays with", "fish"),
-  #     ("birds", "play with", "fishes")
-  #   }
-  # )
-  
 
   # Example with family relationships
   kg_gen = KGGen(
