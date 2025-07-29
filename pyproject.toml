@@ -1,7 +1,9 @@
 [project]
 name = "kg-gen"
-version = "0.1.6"
-authors = [{ name = "Belinda Mo", email = "justanexperimentpark@gmail.com" }]
+version = "0.1.7"
+authors = [
+  { name="Belinda Mo", email="justanexperimentpark@gmail.com" },
+]
 description = "Extract a knowledge graph using LLMs from any text or messages array"
 readme = "README.md"
 requires-python = ">=3.10, <4.0"
@@ -13,7 +15,11 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 license = "MIT"
-dependencies = ["dspy==2.6.24", "nltk", "pydantic>=2.0.0", "openai>=1.61.0"]
+dependencies = [
+    "dspy==2.6.27",
+    "nltk",
+    "pydantic>=2.0.0",
+]
 
 [project.optional-dependencies]
 dev = ["pyvis==0.3.2"]
